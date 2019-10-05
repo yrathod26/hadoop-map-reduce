@@ -1,0 +1,88 @@
+package com.example;
+
+import org.apache.commons.io.FileUtils;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.BytesWritable;
+import org.apache.hadoop.io.IntWritable;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.Mapper;
+import org.apache.hadoop.mapreduce.Reducer;
+import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+import org.apache.hadoop.util.GenericOptionsParser;
+
+import java.io.*;
+import java.util.StringTokenizer;
+
+public class ZipParser {
+
+
+    public static void main(String[] args) throws Exception {
+            Configuration conf = new Configuration();
+            String[] otherArgs = new GenericOptionsParser(conf, args).getRemainingArgs();
+            if (otherArgs.length != 2) {
+                System.err.println("Usage: wordcount <in> <out>");
+            System.exit(2);
+        }
+
+        @SuppressWarnings("deprecation")
+        Job job = new Job(conf, "word count");
+        job.setJarByClass(ZipParser.class);
+        job.setMapperClass(TokenizerMapper.class);
+//        job.setCombinerClass(IntSumReducer.class);
+        job.setReducerClass(IntSumReducer.class);
+        job.setInputFormatClass(NYUZInputFormat.class);
+        job.setOutputKeyClass(Text.class);
+        job.setOutputValueClass(Text.class);
+        FileInputFormat.addInputPath(job, new Path(otherArgs[0]));
+        File file = new File(otherArgs[1]);
+        FileUtils.deleteDirectory(file);
+        FileOutputFormat.setOutputPath(job, new Path(otherArgs[1]));
+        System.exit(job.waitForCompletion(true) ? 0 : 1);
+    }
+
+    public static class TokenizerMapper extends Mapper<Object, BytesWritable, Text, Text> {
+
+        private final static IntWritable one = new IntWritable(1);
+        private Text word = new Text();
+        private BytesWritable bytesWritable;
+
+        public void map(Object key, BytesWritable value, Context context
+        ) throws IOException, InterruptedException {
+            int counterForLine = 0;
+            String content = new String(value.getBytes());
+            BufferedReader bufReader = new BufferedReader(new StringReader(content));
+            String line = null;
+            while((line=bufReader.readLine()) != null)
+            {
+                counterForLine++;
+                StringTokenizer itr = new StringTokenizer(line);
+                while(itr.hasMoreTokens()) {
+                    word.set(itr.nextToken());
+                    if(word.toString().toLowerCase().equals("door")){
+                        word.set(((Text) key) + " Line# " + counterForLine);
+                        context.write(word,new Text(line));
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    public static class IntSumReducer extends Reducer<Text, Text, Text, Text> {
+
+        private IntWritable result = new IntWritable();
+
+        public void reduce(Text key, Iterable<Text> values,
+                           Context context
+        ) throws IOException, InterruptedException {
+            int sum = 0;
+            for (Text val : values) {
+                context.write(key, val);
+            }
+        }
+    }
+
+}
