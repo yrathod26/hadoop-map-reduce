@@ -1,0 +1,33 @@
+package com.example.q4;
+
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.mapreduce.*;
+import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.input.FileSplit;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
+public class JSONInputFormat extends InputFormat {
+
+    @Override
+    public List<InputSplit> getSplits(JobContext jobContext) throws IOException, InterruptedException {
+        List<InputSplit> splits = new ArrayList<>();
+        Path[] paths = FileInputFormat.getInputPaths(jobContext);
+        File file = new File(paths[0].toString().replace("file:",""));
+        File[] files = file.listFiles();
+        for(File i: files) {
+            long length = i.length();
+            splits.add(new FileSplit(new Path(i.getPath()), 0, length, new String[0]));
+        }
+        return splits;
+    }
+
+    @Override
+    public RecordReader createRecordReader(InputSplit inputSplit, TaskAttemptContext taskAttemptContext) throws IOException, InterruptedException {
+        JSONRecordReader recordReader = new JSONRecordReader();
+        return recordReader;
+    }
+}
